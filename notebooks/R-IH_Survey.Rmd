@@ -1,0 +1,194 @@
+---
+title: "OpenMind_Zachary_Zivalich"
+output:
+  pdf_document:
+    toc: yes
+  html_notebook:
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 7, fig.height =7, warning = FALSE, message = FALSE, error = FALSE)
+
+```
+
+
+# 1 The intellectual humility Survey {.tabset .tabset-fade .tabset-pills}
+
+### Addressing the relability of the IH-6 with cronbach's alpha
+
+First, the dataset needs some recording. I'm going to recode the two non-reverse coded questions so all the questions share the same correlative slope, this eliminates some alpha functions down the line 
+```{r}
+
+library("tidyverse")
+library("readxl")
+library(knitr)
+library(kableExtra)
+#reading in data
+df = read_excel("C:/Users/zacha/Desktop/task_dat.xlsx")
+#recoding gender
+df$D2 = ifelse(df$D2=="Female",1,0)
+#reverse coding the two on reversed survey questions
+df$IH3Pre = 8-df$IH3Pre
+df$IH4Pre = 8-df$IH4Pre
+df
+```
+Next, I run the Alpha function from the psych library. The Alpha is around a .6, signaling a weak correaltion and realiability 
+```{r}
+library(psych)
+dfalpha = data.frame(df[,7:12])
+alpha(dfalpha)
+```
+### Addressing the multidimensionaility of the IH-6 survey
+
+A nice way of determining whether something is measuring the same concept (concept validity) is to visualize the distribution of the survey questions. In this case, if all the distributions for the items had the same distribution, and the negative questions had a mirror of this distibution, than the questions have good validity.However, looking at the histograms, questions 3 and 4 have widely different distributions than the other questions.
+```{r}
+library(gridExtra)
+#creating a histogram for each questions
+p1 <- qplot(IH1Pre, data = df,binwidth=.4)
+p2 <- qplot(IH2Pre, data = df,binwidth=.4)
+p3 <- qplot(IH3Pre, data = df,binwidth=.4)
+p4 <- qplot(IH4Pre, data = df,binwidth=.4)
+p5 <- qplot(IH5Pre, data = df,binwidth=.4)
+p6 <- qplot(IH6Pre, data = df,binwidth=.4)
+#Creating a grid to display all the graphs8
+grid.arrange(p1, p2, p3,p4,p5,p6, nrow = 2)
+```
+
+To see if there are multiple factors, I ran a principle component analysis to see how multidimensional the survey was. With each component added, the proportion of variance accounted for increases significantly. So, the data is definitely not unidimensional
+
+```{r}
+#running a pca function on the survey data
+dfalpha = data.frame(df[,7:12])
+pca <- prcomp(na.omit(dfalpha))
+summary(pca) 
+```
+### Factorial Analysis of IH-6
+
+To see how many potential factors the survey data has, I ran a EFa few times. Even though the PCA algorithim showed a lot of variance is spread out between questions, the ideal number of factors is two.
+
+```{r}
+#running an exploratory factorial analysis function
+factanal(x=na.omit(dfalpha),factors = 2, roation="varimax")
+```
+Finally, I ran a confirmatory factor analysis to test the null hypothesis that there are two seperate factors within the survey, and the p-value for the chi-square test is well below .05, signifying statistical significance. The IH-6 definitely has multiple factors. At least 2.
+
+```{r}
+library(lavaan)
+df.model<- 'positive =~ IH1Pre + IH2Pre + IH5Pre + IH6Pre
+            negative =~ IH3Pre + IH4Pre'
+            
+fit = lavaan::cfa(df.model,data = dfalpha)
+lavaan::summary(fit, fit.measures=TRUE)
+```
+# 2 Correlates of Affective Polarization
+
+### Correlational Matrix
+
+To look at the relationship between different survey answers and affective polarization, first I cleaned up the data set to make everyone numerical and drop the categorical variables. I explore further down the categorical variables using some EDA visuals.
+
+```{r}
+#Selecting collumns that do not have so many catgorical factors
+x = df[,c(2:3,7:24)]
+#function that turns all collumns into numerical data
+x[] <- lapply(x, function(x) as.numeric(as.character(x)))
+round_df <- function(df, digits) {
+  nums <- vapply(df, is.numeric, FUN.VALUE = logical(1))
+
+  df[,nums] <- round(df[,nums], digits = digits)
+
+  (df)
+}
+#print dataframe with rounded and numerical data
+x = round_df(x,1)
+x
+```
+
+Now that the data is all cleaned up, i ran a correlational matrix to see which variables has the strongest relationship with affective polarization. it's messy, but D1, D2, IH3, Ih4, GMPost, Anxiety post, GSS pre and post, and Belong pre and post have small to medium size correlations with affecitve polarization. GSSpost in particular had the strongest relationship
+
+```{r}
+cor(x, use = "pairwise.complete.obs")
+```
+
+### Catgorical trends in relation to affective polarization 
+
+
+I looked at the Ethnicity, political stances, and religion of participants and said relation to affective polarization
+
+```{r}
+#creating box plots for each categorical variable and eliminating the x-ais labels because there are so may potential answers
+y = as.numeric(df$AffPol2Pre)
+p1 <- ggplot(df, aes(x=D3, y=y)) + geom_boxplot() + theme(axis.title.x=element_blank(),  axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Ethnicity")
+p2 <- ggplot(df, aes(x=D4, y=y)) + geom_boxplot() + theme(axis.title.x=element_blank(),  axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Political Opinion")
+p3 <- ggplot(df, aes(x=D6, y=y)) + geom_boxplot() + theme(axis.title.x=element_blank(),  axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Religion")
+library("gridExtra")
+grid.arrange(p1, p2, p3, nrow = 3)
+```
+looking at the box plots, most groups had very similar relationships with effective polarization. Political Opinion's however did have a noticeable effect. I suspect that right leaning test takers score lower overall. I was going to recode the variables so that it was more like a spectrum of progressive at 1 and conservative at 7, but I thought that was outside of the scope of this project. I looked at the post affective polarization, and it looks like the intervention does not work on certain groups, which is very interesting.
+
+```{r}
+#doing the same for affective polarization post
+y = as.numeric(df$AffPol2Post)
+p1 <- ggplot(df, aes(x=D3, y=y)) + geom_boxplot() + theme(axis.title.x=element_blank(),  axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Ethnicity")
+p2 <- ggplot(df, aes(x=D4, y=y)) + geom_boxplot() + theme(axis.title.x=element_blank(),  axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Political Opinion")
+p3 <- ggplot(df, aes(x=D6, y=y)) + geom_boxplot() + theme(axis.title.x=element_blank(),  axis.text.x=element_blank(), axis.ticks.x=element_blank()) + ggtitle("Religion")
+grid.arrange(p1, p2, p3, nrow = 3)
+```
+
+
+# 3  using a linear mixed model on the pre and post affective polarization data
+
+First, I used tidyverse to reorganize the dataset so that participants had multiple cells for each time they were asked for their affective polarization. 
+
+```{r}
+library(rstatix)
+dfn = df %>%
+  gather( key = "prepost", value= "change",AffPol2Pre, AffPol2Post) %>%
+  convert_as_factor(OMID,prepost)%>%
+  select(OMID,D1,D2,prepost,change)%>%
+  rename(Age = D1 , Gender = D2)
+dfn$change = as.numeric(dfn$change)
+dfn
+
+```
+
+Next, I ran a linear mix-effects model on the pre and post affective polarization data using the lme4 package. looking at the summary table, pre and post results were significantly different.
+
+```{r}
+library(lme4)
+library(lmerTest)
+library(psycho)
+M1 = lmer(change ~ prepost + (1|OMID), data =dfn)
+summary(M1) 
+```
+Below is a graph of the change from pre to post affective polarization tests with fixed and random effects accounted for. It is a positive relationship taking both effects into account.
+
+```{r}
+library(sjPlot)
+plot_model(M1, title = " Change in Affective polarization")
+```
+
+
+# 4 using a linear mixed model on age and gender
+
+Next, I added in age and gender variables into the model to see if they played a part in the success of the intervention. looking at the coefficients, the pre-post results were no longer significant while taking into account the age and gender of the participant. Perhaps certain males are much less likely to react to the intervention and females very likely to. This assumption would require a deeper dive into the data to determine.
+
+```{r}
+M2 = lmer(change ~ prepost * Age * Gender + (1|OMID), data =dfn)
+summary(M2)
+```
+Finally, I used a package to plot this change. Age did very little to effect the improvement of affective polarization.However, Gender had an interesting relationship with the effects of the intervention. When taking into the effects of Gender, the intervention was more like to either be positive or negative. This results are very interesting and raises many questions about the effects of gender on OpenMind's intervention.
+
+```{r}
+plot_model(M2)
+```
+Looking at the means of the two genders, overall women had a better reaction to the intervention
+```{r}
+dfn %>%
+  group_by(Gender)%>%
+  summarise(mean(change, na.rm = TRUE))
+```
+
